@@ -6,6 +6,7 @@
 use SuperPig\EedoCustomerService\logic\Admin;
 use SuperPig\EedoCustomerService\logic\Client;
 use SuperPig\EedoCustomerService\logic\CustomerService;
+use SuperPig\EedoCustomerService\events;
 
 return [
     // 服务配置
@@ -71,10 +72,29 @@ return [
             // 验证方式
             'authentication' => null,
             // 处理逻辑
-            'handler'        => Client::class
+            'handler'        => Client::class,
+            // 事件监听
+            'listen' => [
+                // 消息发送事件
+                events\client\SendMessage::class => [],
+                // 登陆事件
+                events\client\Login::class => [],
+                // 登陆事件
+                events\client\Logout::class => [],
+            ],
         ],
         'customer_service' => [
+            // 处理逻辑
             'handler' => CustomerService::class,
+            // 事件监听
+            'listen' => [
+                // 消息发送事件
+                events\customer_service\SendMessage::class => [],
+                // 登陆事件
+                events\customer_service\Login::class => [],
+                // 登陆事件
+                events\customer_service\Logout::class => [],
+            ],
         ],
         'admin'            => [
             'handler' => Admin::class,

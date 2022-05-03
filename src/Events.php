@@ -10,6 +10,7 @@ use GatewayWorker\BusinessWorker;
 use GatewayWorker\Lib\Gateway;
 use ReflectionClass;
 use ReflectionMethod;
+use SuperPig\EedoCustomerService\events\client\SendMessage;
 use SuperPig\EedoCustomerService\exception\AuthenticationException;
 use SuperPig\EedoCustomerService\exception\InvalidRequestException;
 use SuperPig\EedoCustomerService\logic\Admin;
@@ -27,6 +28,8 @@ class Events
     public static $logicConfig = [];
     // 逻辑事件映射
     public static $logicEventMap = [];
+    // 事件监听
+    public static $eventListen = [];
 
     // 变量共享组件
     public static $globalData;
@@ -39,13 +42,20 @@ class Events
     {
         // 加载逻辑配置
         self::$logicConfig = Config::get('eedo.logic');
+        // 加载事件监听
+        self::$eventListen = array_merge(
+            Config::get('eedo.logic.client.listen', array()),
+            Config::get('eedo.logic.customer_service.listen', array())
+        );
         // 增加事件映射
         foreach ([Client::class, CustomerService::class, Admin::class] as $cls) {
             $reflClass = new ReflectionClass($cls);
             $key       = Str::snake($reflClass->getShortName());
             if (!isset(self::$logicEventMap[$key])) self::$logicEventMap[$key] = ['methods' => [], 'namespace' => $cls];
             foreach ($reflClass->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
-                array_push(self::$logicEventMap[$key]['methods'], Str::snake($method->name));
+                if(strstr($method->name, '__') === false) {
+                    array_push(self::$logicEventMap[$key]['methods'], Str::snake($method->name));
+                }
             }
             unset($reflClass);
         }
@@ -115,10 +125,10 @@ class Events
 
                 // 禁止重复验证
                 if (isset($_SESSION['role'])) throw new InvalidRequestException('repeat authentication');
-                $uuid = forward_static_call_array([
+                $uuid = forward_static_call_array(array(
                     self::$logicEventMap[$role]['namespace'],
                     '__authentication',
-                ], [$clientId, $data, []]);
+                ), array($clientId, $data, array()));
                 //if (!is_string($uuid)) throw new AuthenticationException('uuid generation error');
 
                 // 用户赋值
@@ -129,7 +139,7 @@ class Events
                 // 发送通知
                 Gateway::sendToCurrentClient(Helper::formatResponseData('authentication success', [], 'auth',200));
 
-                // 相应事件
+                //// 相应事件
                 forward_static_call_array(array(
                     self::$logicEventMap[$role]['namespace'],
                     '__eventAfterAuthentication'

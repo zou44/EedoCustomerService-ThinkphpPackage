@@ -9,11 +9,12 @@ namespace SuperPig\EedoCustomerService\logic;
 use GatewayWorker\Lib\Gateway;
 use SuperPig\EedoCustomerService\Events;
 use SuperPig\EedoCustomerService\exception\InvalidRequestException;
-use SuperPig\EedoCustomerService\Exception\LogicException;
+use SuperPig\EedoCustomerService\exception\LogicException;
 use SuperPig\EedoCustomerService\Helper;
 use Exception;
 use think\facade\Config;
 use SuperPig\EedoCustomerService\enum;
+use SuperPig\EedoCustomerService\events as systemEvents;
 
 class Client
 {
@@ -25,7 +26,7 @@ class Client
      * @param $data
      * @param $options
      * @return string
-     * @throws \SuperPig\EedoCustomerService\exception\InvalidRequestException
+     * @throws \SuperPig\EedoCustomerService\exception\InvalidRequestException|\SuperPig\EedoCustomerService\Exception\LogicException
      */
     public static function __authentication($clientId, $data, $options)
     {
@@ -74,7 +75,9 @@ class Client
                 ->row();
         }
         $_SESSION['client_info'] = $clientInfo;
-
+        // 触发事件
+        Helper::event(new systemEvents\client\Login($data));
+        // 调度客服
         self::scheduler($data);
     }
 
@@ -85,7 +88,6 @@ class Client
         $uuid = $_SESSION['uuid'];
         if(Gateway::isUidOnline($uuid) === 0 && isset($_SESSION['customer_service_id'])) {
             $csId = $_SESSION['customer_service_id'];
-
             Helper::clientUserAccessToCustomerService($csId, $uuid, [
                 'state' => enum\reception_record\State::REMOVE,
                 'store' => [
@@ -95,7 +97,8 @@ class Client
                     ],
                 ],
             ]);
-
+            // 触发事件
+            Helper::event(new systemEvents\client\Logout());
             // 发送通知给管理员
             Gateway::sendToUid(
                 $csId,
@@ -144,7 +147,8 @@ class Client
             ->query();
         // 更新接待列表
         Events::$mysqlDb->query('UPDATE `'.Helper::getDataTableName('reception_records').'` SET cs_unread=cs_unread+1, cu_last_msg_at="'.date('Y-m-d H:i:s').'" WHERE cs_id='.$toId.' AND cu_id='.$cuId);
-
+        // 触发事件
+        Helper::event(new systemEvents\client\SendMessage($data));
         // 发送消息
         Gateway::sendToUid(
             $toId,

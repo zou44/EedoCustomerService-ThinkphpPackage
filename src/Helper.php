@@ -7,8 +7,9 @@ namespace SuperPig\EedoCustomerService;
 
 
 use Exception;
-use GatewayWorker\Lib\Gateway;
 use SuperPig\EedoCustomerService\enum;
+use SuperPig\EedoCustomerService\events\Event;
+use think\facade\Config;
 
 class Helper
 {
@@ -191,5 +192,23 @@ class Helper
         array_push($leftArray, $middle);
         $rightArray = self::quickSort($rightArray, $countKey);
         return array_merge($leftArray, $rightArray);
+    }
+
+    /**
+     * 触发事件
+     *
+     * @param \SuperPig\EedoCustomerService\events\Event $event
+     */
+    public static function event(Event $event) {
+        $className = get_class($event);
+        if(isset(Events::$eventListen[$className])) {
+            foreach(Events::$eventListen[$className] as $item) {
+                $classAndMethod = explode('@', $item);
+                forward_static_call_array(array(
+                    $classAndMethod[0],
+                    $classAndMethod[1]
+                ), array($event));
+            }
+        }
     }
 }

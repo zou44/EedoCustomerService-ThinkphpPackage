@@ -14,6 +14,7 @@ use SuperPig\EedoCustomerService\exception\InvalidRequestException;
 use SuperPig\EedoCustomerService\exception\LogicException;
 use SuperPig\EedoCustomerService\Helper;
 use SuperPig\EedoCustomerService\enum;
+use SuperPig\EedoCustomerService\events as systemEvents;
 
 class CustomerService
 {
@@ -65,6 +66,8 @@ class CustomerService
                 );
             }
         } while(!Events::$globalData->cas('online_customer_services', $oldOnlineCustomerServices, $newOnlineCustomerServices));
+        // 触发事件
+        Helper::event(new systemEvents\client\Login($data));
     }
 
     /**
@@ -82,7 +85,8 @@ class CustomerService
                     break;
                 }
             } while (!Events::$globalData->cas('online_customer_services', $oldOnlineCustomerServices, $newOnlineCustomerServices));
-
+            // 触发事件
+            Helper::event(new systemEvents\client\Logout());
             // 向所有正在沟通的用户发送离线消息
             foreach($oldOnlineCustomerServices[$uuid]['rcpt_lists'] as $key=>$value) {
                 // 发送通知给管理员
@@ -143,7 +147,8 @@ class CustomerService
             ->query();
         // 更新接待列表
         Events::$mysqlDb->query('UPDATE `'.Helper::getDataTableName('reception_records').'` SET cu_unread=cu_unread+1, cs_last_msg_at="'.date('Y-m-d H:i:s').'" WHERE cs_id='.$fromId.' AND cu_id='.$toId);
-
+        // 触发事件
+        Helper::event(new systemEvents\client\SendMessage($data));
         // 发送消息
         Gateway::sendToUid(
             $clientUserUuid,
