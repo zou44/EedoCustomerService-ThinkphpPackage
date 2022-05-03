@@ -1,0 +1,37 @@
+{
+    "name": "superpig/eedo-customer-service-thinkphp-package",
+    "type": "think-extend",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "superpig",
+            "email": "645531302@qq.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {
+        "php": ">=5.6.0",
+        "workerman/gateway-worker": "^3.0",
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "topthink/framework": "5.1.*",
+        "robmorgan/phinx": ">=0.11",
+        "workerman/globaldata": "*",
+        "workerman/mysql": "*"
+    },
+    "require-dev": {
+    },
+    "autoload": {
+        "psr-4": {
+            "SuperPig\\EedoCustomerService\\": "src/"
+        },
+        "files": [
+            "src/Command.php"
+        ]
+    },
+    "extra": {
+        "think-config": {
+            "eedo": "src/config/Config.php"
+        }
+    }
+}
