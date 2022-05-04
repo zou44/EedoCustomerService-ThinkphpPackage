@@ -19,6 +19,7 @@ final class CustomerServiceAccounts extends AbstractMigration
         $table = $this->table('customer_service_accounts', ['collation' => 'utf8mb4_unicode_ci']);
         $table->addColumn('account', 'string')
             ->addColumn('password', 'string')
+            ->addColumn('info', 'string', ['null' => true])
             ->addColumn('state', 'integer', [
                 'limit'   => MysqlAdapter::INT_TINY,
                 'default' => State::NORMAL,

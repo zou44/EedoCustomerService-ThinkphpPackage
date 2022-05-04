@@ -23,7 +23,7 @@ class CustomerService
      * @param $data
      * @param $options
      * @return mixed
-     * @throws \SuperPig\EedoCustomerService\exception\InvalidRequestException
+     * @throws \SuperPig\EedoCustomerService\exception\InvalidRequestException|\SuperPig\EedoCustomerService\exception\AuthenticationException
      */
     public static function __authentication($clientId, $data, $options) {
         if(!isset($data['account']) && isset($data['password'])) throw new InvalidRequestException('请输入账号和密码', 50400);
@@ -168,12 +168,105 @@ class CustomerService
     }
 
     /**
+     * 聊天记录
+     *
+     * @param $data
+     */
+    public static function chatRecords($data) {
+        // TODO:后期要将数据库解耦
+        $page = isset($data['p']) && is_int($data['p']) ? $data['p'] : 1;
+        $customerServiceId = $_SESSION['customer_service_info']['id'];
+        $chatRecordsTable = Helper::getDataTableName('chat_records');
+
+        $rows = Events::$mysqlDb->select("*")
+            ->from($chatRecordsTable)
+            ->where('from_user_type='.enum\chat_record\FromUserType::SERVICE.' AND from_id=:from_id')
+            ->orWhere('to_user_type='.enum\chat_record\ToUserType::SERVICE.' AND to_id=:to_id')
+            ->bindValues(array(
+                'from_id' => $customerServiceId,
+                'to_id' => $customerServiceId,
+            ))
+           ->orderByDESC(array(
+                $chatRecordsTable.'.id'
+            ))
+            ->setPaging(25)
+            ->page($page)
+            ->query();
+
+        // 对数据进行处理
+        $resultData = array();
+        $customerServiceUser = array();
+        $clientUser = array();
+        $clientUsersTable = Helper::getDataTableName('client_users');
+        $customerServiceAccountTable = Helper::getDataTableName('customer_service_accounts');
+
+        foreach($rows as $item) {
+            // 返回数据
+            $result = array(
+                'from' => array(),
+                'to'   => array(),
+                'from_id' => $item['from_id'],
+                'to_id' => $item['to_id'],
+                'from_user_type' => $item['from_user_type'],
+                'to_user_type' => $item['to_user_type'],
+                'content' => $item['content'],
+                'created_at' => $item['created_at'],
+            );
+
+            // 赋值发送方信息
+            $fromId = $item['from_id'];
+            switch ($item['from_user_type']) {
+                case enum\chat_record\FromUserType::CLIENT:
+                    if(!isset($clientUser[$fromId])) {
+                        $clientUser[$fromId] = Events::$mysqlDb->select('*')->from($clientUsersTable)->where('id=:id')->bindValues(array( 'id' => $fromId ))->row();
+                    }
+                    $result['from'] = $clientUser[$fromId]['info'];
+                    break;
+                case enum\chat_record\FromUserType::SERVICE:
+                    if(!isset($customerServiceUser[$fromId])) {
+                        $customerServiceUser[$fromId] = Events::$mysqlDb->select('*')->from($customerServiceAccountTable)->where('id=:id')->bindValues(array( 'id' => $fromId ))->row();
+                    }
+                    $result['from'] = $customerServiceUser[$fromId]['info'];
+                    break;
+            }
+
+            // 接收方信息
+            $toId = $item['to_id'];
+            switch ($item['to_user_type']) {
+                case enum\chat_record\ToUserType::CLIENT:
+                    if(!isset($clientUser[$toId])) {
+                        $clientUser[$toId] = Events::$mysqlDb->select('*')->from($clientUsersTable)->where('id=:id')->bindValues(array( 'id' => $toId ))->row();
+                    }
+                    $result['to'] = $clientUser[$toId]['info'];
+                    break;
+                case enum\chat_record\ToUserType::SERVICE:
+                    if(!isset($customerServiceUser[$toId])) {
+                        $customerServiceUser[$toId] = Events::$mysqlDb->select('*')->from($customerServiceAccountTable)->where('id=:id')->bindValues(array( 'id' => $toId ))->row();
+                    }
+                    $result['to'] = $customerServiceUser[$toId]['info'];
+                    break;
+            }
+
+            array_push($resultData, $result);
+        }
+
+        Gateway::sendToCurrentClient(
+            Helper::formatResponseData(
+                '聊天记录',
+                $resultData,
+                'chat_records',
+                200
+            )
+        );
+    }
+
+    /**
      * 接待列表
      *
      * @param $data
      */
     public static function receptionRecords($data) {
-        // TODO:要实现内存 AND 存储库
+        // TODO:后期需要将数据库解耦
         $page = isset($data['p']) && is_int($data['p']) ? $data['p'] : 1;
         // 暂时先都从数据库读
         $csId = $_SESSION['uuid'];

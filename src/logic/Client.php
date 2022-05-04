@@ -168,6 +168,99 @@ class Client
     }
 
     /**
+     * 聊天记录
+     *
+     * @param $data
+     */
+    public static function chatRecords($data) {
+        // TODO:后期要将数据库解耦
+        $page = isset($data['p']) && is_int($data['p']) ? $data['p'] : 1;
+        $clientUserId = $_SESSION['client_info']['id'];
+        $chatRecordsTable = Helper::getDataTableName('chat_records');
+
+        $rows = Events::$mysqlDb->select("*")
+            ->from($chatRecordsTable)
+            ->where('from_user_type='.enum\chat_record\FromUserType::CLIENT.' AND from_id=:from_id')
+            ->orWhere('to_user_type='.enum\chat_record\ToUserType::CLIENT.' AND to_id=:to_id')
+            ->bindValues(array(
+                'from_id' => $clientUserId,
+                'to_id' => $clientUserId,
+            ))
+           ->orderByDESC(array(
+                $chatRecordsTable.'.id'
+            ))
+            ->setPaging(25)
+            ->page($page)
+            ->query();
+
+        // 对数据进行处理
+        $resultData = array();
+        $customerServiceUser = array();
+        $clientUser = array();
+        $clientUsersTable = Helper::getDataTableName('client_users');
+        $customerServiceAccountTable = Helper::getDataTableName('customer_service_accounts');
+
+        foreach($rows as $item) {
+            // 返回数据
+            $result = array(
+                'from' => array(),
+                'to'   => array(),
+                'from_id' => $item['from_id'],
+                'to_id' => $item['to_id'],
+                'from_user_type' => $item['from_user_type'],
+                'to_user_type' => $item['to_user_type'],
+                'content' => $item['content'],
+                'created_at' => $item['created_at'],
+            );
+
+            // 赋值发送方信息
+            $fromId = $item['from_id'];
+            switch ($item['from_user_type']) {
+                case enum\chat_record\FromUserType::CLIENT:
+                    if(!isset($clientUser[$fromId])) {
+                        $clientUser[$fromId] = Events::$mysqlDb->select('*')->from($clientUsersTable)->where('id=:id')->bindValues(array( 'id' => $fromId ))->row();
+                    }
+                    $result['from'] = $clientUser[$fromId]['info'];
+                    break;
+                case enum\chat_record\FromUserType::SERVICE:
+                    if(!isset($customerServiceUser[$fromId])) {
+                        $customerServiceUser[$fromId] = Events::$mysqlDb->select('*')->from($customerServiceAccountTable)->where('id=:id')->bindValues(array( 'id' => $fromId ))->row();
+                    }
+                    $result['from'] = $customerServiceUser[$fromId]['info'];
+                    break;
+            }
+
+            // 接收方信息
+            $toId = $item['to_id'];
+            switch ($item['to_user_type']) {
+                case enum\chat_record\ToUserType::CLIENT:
+                    if(!isset($clientUser[$toId])) {
+                        $clientUser[$toId] = Events::$mysqlDb->select('*')->from($clientUsersTable)->where('id=:id')->bindValues(array( 'id' => $toId ))->row();
+                    }
+                    $result['to'] = $clientUser[$toId]['info'];
+                    break;
+                case enum\chat_record\ToUserType::SERVICE:
+                    if(!isset($customerServiceUser[$toId])) {
+                        $customerServiceUser[$toId] = Events::$mysqlDb->select('*')->from($customerServiceAccountTable)->where('id=:id')->bindValues(array( 'id' => $toId ))->row();
+                    }
+                    $result['to'] = $customerServiceUser[$toId]['info'];
+                    break;
+            }
+
+            array_push($resultData, $result);
+        }
+
+        Gateway::sendToCurrentClient(
+            Helper::formatResponseData(
+                '聊天记录',
+                $resultData,
+                'chat_records',
+                200
+            )
+        );
+    }
+
+    /**
      * 获得客服ID
      *
      * @param array $data 鉴权数据包

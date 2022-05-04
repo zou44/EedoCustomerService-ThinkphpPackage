@@ -159,9 +159,10 @@ class Events
             Gateway::closeCurrentClient();
         } catch (InvalidRequestException $e) {
             Gateway::sendToCurrentClient(Helper::formatResponseData($e->getMessage(), [], $method, $e->getCode()));
-        } catch(Exception $e) {
-            Log::log('eedo_error', (string)$e);
         }
+        //catch(Exception $e) {
+        //    Log::log('eedo_error', (string)$e);
+        //}
     }
 
     /**
